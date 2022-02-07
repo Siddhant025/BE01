@@ -2,13 +2,19 @@ from flask import Flask,request,jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from datetime import datetime
-
-from sqlalchemy import true
+from flask_caching import Cache
+import redis
 
 application = Flask(__name__)
 
 application.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///tasks.db"
 application.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+#Used caching using redis
+cache  = Cache(config={"CACHE_TYPE": "RedisCache","CACHE_REDIS_HOST":"0.0.0.0",
+"CACHE_REDIS_PORT":6379})
+
+cache.init_app(application)
 
 db = SQLAlchemy(application)
 ma = Marshmallow(application)
@@ -31,6 +37,7 @@ todolist_schema = TodoListSchema(many=False)
 todolists_schema = TodoListSchema(many=True)
 
 @application.route('/todolist',methods=["POST"])
+@cache.cached(timeout=3000)
 def create_task():
     try:
         title = request.json['title']
@@ -47,6 +54,7 @@ def create_task():
         return jsonify({"Error" : "Invalid Request"})
 
 @application.route('/')
+@cache.cached(timeout=5000)
 def get_tasks():
     todos = TodoList.query.all()
     result_set = todolists_schema.dump(todos)
@@ -54,6 +62,7 @@ def get_tasks():
 
 
 @application.route('/todolist/<int:id>',methods=["PUT"])
+@cache.cached(timeout=36000)
 def update_task(id):
     todo = TodoList.query.get_or_404(int(id))
     try:
@@ -72,6 +81,7 @@ def update_task(id):
 
 
 @application.route("/todolist/<int:id>", methods=["DELETE"])
+@cache.cached(timeout=50000)
 def delete_todo(id):
     todo = TodoList.query.get_or_404(int(id))
     db.session.delete(todo)
@@ -80,6 +90,6 @@ def delete_todo(id):
 
 
 if __name__ == "__main__":
-    application.run(debug=true,port=8080)
+    application.run("0.0.0.0",debug=True,port=8080)
 
 
